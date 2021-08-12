@@ -4,6 +4,7 @@
 #############################################################
 
 
+
 ##### EVENTS #####
 
 #/----------------------
@@ -391,7 +392,7 @@ def cgx_mesh_two_sites(sdk, site1_id, site2_id ):
     for left_wan in site1_wans:
         for right_wan in site2_wans:
             if left_wan['type'] == right_wan['type']: ##WANS must be of same type. I.E. PrivateWAN must connect to Private WAN's
-                cgx_mesh_two_sites(site1_id, left_wan['id'], site2_id, right_wan['id'], sdk  )
+                cgx_add_anynet_link(sdk, site1_id, left_wan['id'], site2_id, right_wan['id'])
 #\----------------------
        
 #/----------------------
