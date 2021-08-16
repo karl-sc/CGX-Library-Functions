@@ -368,17 +368,17 @@ def cgx_get_last_flows(sdk, site_id, start_time, end_time, filter_list_of_apps=[
 #\----------------------
 
 #/----------------------
-#| cgx_get_bw_consumption - Gets bandwidth consumption for a give time period. If no site_id is given, Aggregate BW consumption for the tenant is provided.
+#| cgx_get_bw_consumption - Gets bandwidth consumption average for a give time period. If no site_id is given, Aggregate BW consumption for the tenant is provided.
 def cgx_get_bw_consumption(sdk, start_time, end_time, site_id=None):
     true = True
     false = False
-    (start_time, end_time) = cgx_generate_timestamps(hours_interval=1)
     post_request = {"start_time":start_time, "end_time":end_time, "interval":"5min","metrics":[{"name":"BandwidthUsage","statistics":["average"],"unit":"Mbps"}],"view":{},"filter":{"site":[]}}
     if site_id: post_request['filter']['site'].append(str(site_id))
     result = sdk.post.monitor_metrics(post_request)
     metrics = result.cgx_content
     series = metrics.get("metrics",[{}])[0].get("series",[])[0]
-    return(cgx_sum_series(series))
+    return(cgx_average_series(series))
+#\----------------------
 
 
 
@@ -522,6 +522,7 @@ def cgx_average_series(metrics_series_structure, decimal_places=2):
             return round((sum/count))
         return round((sum/count),decimal_places)
     return 0
+#\----------------------
 
 #/----------------------
 #| cgx_sum_series - takes a series structure (input['series']['data']['datapoints'][**list**]['value']) and sums it to the decimal places (default:2)
@@ -541,6 +542,36 @@ def cgx_sum_series(metrics_series_structure, decimal_places=2):
             return round((sum))
         return round((sum),decimal_places)
     return 0
+#\----------------------
+
+#/----------------------
+#| validate_2d_array - Validates an array is 2-dimensional for use in CSV Export
+def validate_2d_array(test_list):
+    import numpy as np
+    np_list = np.array(test_list)
+    if len(np_list.shape) == 2:
+        return True
+    return False
+#\----------------------
+
+
+#/----------------------
+#| write_2d_list_to_csv - Writes a 2-Dimensional list to a CSV file
+def write_2d_list_to_csv(csv_file, list_2d, write_mode="w"):
+    import csv
+    try:
+        file = open(csv_file, write_mode)
+        with file:    
+            write = csv.writer(file)
+            write.writerows(list_2d)
+            return True
+        return False
+    except:
+        return False
+
+#\----------------------
+
+
 
 
 #######################################Examples#########################################################################
