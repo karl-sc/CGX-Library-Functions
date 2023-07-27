@@ -644,13 +644,15 @@ def print_flows(sdk,flows):
 
 
 #/----------------------
-#| cgx_set_snmpv2_config_by_id - Sets SNMP Configuration given a site id
+#| cgx_set_snmpv2_config_by_id - Modifies SNMP Configuration given a site id. Will not add where no config is present
 def cgx_set_snmpv2_config_by_id(sdk, site_id=None, community=None, enabled=True):
     if not site_id: return False
     list_of_elements = cgx_get_element_ids_in_site(sdk, site_id)
     if list_of_elements:
         for element_id in list_of_elements:
             snmpagent_config = sdk.get.snmpagents(site_id, element_id).cgx_content
+            if len(snmpagent_config['items']) < 1:
+                return False ### No results
             snmpagent_id = snmpagent_config['items'][0]['id']
             if enabled:
                 if snmpagent_config['items'][0]['v2_config'] is None:
@@ -665,6 +667,5 @@ def cgx_set_snmpv2_config_by_id(sdk, site_id=None, community=None, enabled=True)
     else:
         return False
 #\----------------------
-
 
 
