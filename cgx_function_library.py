@@ -104,8 +104,10 @@ def cgx_get_last_alarms(sdk, count=100, acknowledged=False, resolved=False, hour
 ##### SITES #####
 
 #/----------------------
-#| cgx_site_name_to_id - Attempts to find the best matching site id given a site name
-def cgx_site_name_to_id(sdk, search_site):
+#| cgx_site_name_to_id - Attempts to find the best matching site id given a site name. Case is insensitive.
+#|                       Optionally include a minimum assurance to guarantee a level of match. 80 is pretty close ('Neywork' will match 'New York'), 
+#|                       90 is incredibly close (Newyork = New York), and 100 is exact (New York = New York). 
+def cgx_site_name_to_id(sdk, search_site,minimum_assurance=0):
     from fuzzywuzzy import fuzz
     search_ratio = 0
     site_dict = {}
@@ -114,7 +116,7 @@ def cgx_site_name_to_id(sdk, search_site):
         site_list = resp.cgx_content.get("items", None)    #site_list contains an list of all returned sites
         for site in site_list:                            #Loop through each site in the site_list
             check_ratio = fuzz.ratio(search_site.lower(),site['name'].lower())
-            if (check_ratio > search_ratio ): ###Find the "best" matching site name
+            if (check_ratio > search_ratio and check_ratio >= minimum_assurance): ###Find the "best" matching site name with the minimum assurance (90 is really close)
                 search_ratio = check_ratio
                 site_dict = site
     else:
@@ -209,10 +211,12 @@ def cgx_get_element_ids_in_site(sdk, site_id):
 #/----------------------
 #| cgx_get_element_dict_in_site - returns a list of element DICT's bound to that site
 def cgx_get_element_dict_in_site(sdk, site_id):
-    response = []
+    response = None
     elements_list = sdk.get.elements().cgx_content.get("items")
     for element in elements_list:
         if element['site_id'] == site_id:
+            if response == None:
+                response = []
             response.append(element)
     return response
 #\----------------------
@@ -369,7 +373,7 @@ def cgx_get_last_flows(sdk, site_id, start_time, end_time, filter_list_of_apps=[
 
 #/----------------------
 #| cgx_get_bw_consumption - Gets bandwidth consumption average for a give time period. If no site_id is given, Aggregate BW consumption for the tenant is provided.
-def cgx_get_bw_consumption(sdk, start_time, end_time, site_id=None):
+def cgx_get_bw_consumption(sdk, start_time, end_time, site_id=None, average=True, percentile=90):
     true = True
     false = False
     post_request = {"start_time":start_time, "end_time":end_time, "interval":"5min","metrics":[{"name":"BandwidthUsage","statistics":["average"],"unit":"Mbps"}],"view":{},"filter":{"site":[]}}
@@ -377,9 +381,11 @@ def cgx_get_bw_consumption(sdk, start_time, end_time, site_id=None):
     result = sdk.post.monitor_metrics(post_request)
     metrics = result.cgx_content
     series = metrics.get("metrics",[{}])[0].get("series",[])[0]
-    return(cgx_average_series(series))
+    if average == True:
+        return(cgx_average_series(series))
+    else:
+        return(cgx_percentile_series(series, percentile=percentile))
 #\----------------------
-
 
 
 ##### Topology #####
@@ -525,6 +531,25 @@ def cgx_average_series(metrics_series_structure, decimal_places=2):
 #\----------------------
 
 #/----------------------
+#| cgx_percentile_series - takes a metrics series structure (input['metrics']['series']['data']['datapoints'][**list**]['value']) and gets a percentile return
+#|                  A typical call would look like: 
+#|                      metrics = cgx_get_bw_consumption(sdk,start,end) ## Calls sdk.post.monitor_metrics and returns Metrics with Series in them
+#|                      for series in metrics.get("metrics",[{}])[0].get("series",[]):
+#|                          average = cgx_average_series(series)
+def cgx_percentile_series(metrics_series_structure, decimal_places=2, percentile=90):
+    import numpy as np
+    sum_array = []
+    for datapoints in metrics_series_structure.get("data",[{}])[0].get("datapoints",[{}]):
+        if (datapoints.get("value",None) is not None):
+            sum_array.append( datapoints.get("value",0) )
+    if len(sum_array) > 0:
+        a = np.array(sum_array )
+        p = np.percentile(a, percentile)
+        return p
+    return 0
+#\----------------------
+
+#/----------------------
 #| cgx_sum_series - takes a series structure (input['series']['data']['datapoints'][**list**]['value']) and sums it to the decimal places (default:2)
 #|                  A typical call would look like: 
 #|                      metrics = cgx_get_bw_consumption(sdk,start,end) ## Calls sdk.post.monitor_metrics and returns Metrics with Series in them
@@ -615,3 +640,31 @@ def print_flows(sdk,flows):
         print("  - Retrans Pkts:", " (" + str(safe_resolve(flow,'retransmit_pkts_c2s')) + "/" + str(safe_resolve(flow,'retransmit_pkts_s2c') ) + ") " ) 
         print("  - Domain      :",safe_resolve(flow,'unknown_domain') )
         print("  - PathChng rsn:",safe_resolve(flow,'wan_path_change_reason') )
+
+
+
+#/----------------------
+#| cgx_set_snmpv2_config_by_id - Sets SNMP Configuration given a site id
+def cgx_set_snmpv2_config_by_id(sdk, site_id=None, community=None, enabled=True):
+    if not site_id: return False
+    list_of_elements = cgx_get_element_ids_in_site(sdk, site_id)
+    if list_of_elements:
+        for element_id in list_of_elements:
+            snmpagent_config = sdk.get.snmpagents(site_id, element_id).cgx_content
+            snmpagent_id = snmpagent_config['items'][0]['id']
+            if enabled:
+                if snmpagent_config['items'][0]['v2_config'] is None:
+                    snmpagent_config['items'][0]['v2_config'] = {}
+                snmpagent_config['items'][0]['v2_config']['enabled'] = enabled
+                if community:
+                    snmpagent_config['items'][0]['v2_config']['community'] = community
+            else:
+                snmpagent_config['items'][0]['v2_config'] = None
+            snmp_put_result = sdk.put.snmpagents(site_id, element_id, snmpagent_id, snmpagent_config['items'][0])
+            return snmp_put_result
+    else:
+        return False
+#\----------------------
+
+
+
