@@ -669,3 +669,45 @@ def cgx_set_snmpv2_config_by_id(sdk, site_id=None, community=None, enabled=True)
 #\----------------------
 
 
+
+def retrieve_edl_to_list(edl_url):
+    response = requests.get(edl_url)
+    listofdomains= re.sub('\*\.|\/',"",response.text).split()
+    return listofdomains
+
+def get_dns_service_profile(sdk, profile_name):
+    result = sdk.get.dnsserviceprofiles()
+    answer = None
+    for dns_profile in result.cgx_content['items']:
+        if dns_profile['name'] == profile_name :
+            answer = sdk.get.dnsserviceprofiles(dnsserviceprofile_id=dns_profile['id']).cgx_content
+            return answer
+    return answer
+
+def populate_dns_profile_breakout(dns_profile=None, fqdn_list=None, dns_primary=None, service_role_id=None):
+    dns_svr_fwd_config = dns_profile['dns_forward_config']['dns_servers']
+    for domain in fqdn_list:
+        domain_missing = True
+        for dns_fwd_entry in dns_svr_fwd_config:
+            if dns_fwd_entry.get("domain_names") != None:
+                if dns_fwd_entry["domain_names"][0] == domain:
+                    domain_missing = False
+        if (domain_missing): 
+            dns_profile['dns_forward_config']['dns_servers'].append(
+            {
+                "ip_prefix": "",
+                "domain_names": [domain],
+                "dnsserver_ip": dns_primary,
+                "dnsserver_port": None,
+                "forward_dnsservicerole_id": service_role_id,
+                "source_port": None,
+                "address_family": "ipv4"
+            })
+    return dns_profile
+
+def get_dns_servicerole_id(sdk, service_role_name):
+    result = sdk.get.dnsserviceroles()
+    for serviceroles in result.cgx_content.get('items', None):
+        if serviceroles['name'] == service_role_name:
+            return serviceroles['id']
+    return None
