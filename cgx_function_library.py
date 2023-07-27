@@ -669,12 +669,16 @@ def cgx_set_snmpv2_config_by_id(sdk, site_id=None, community=None, enabled=True)
 #\----------------------
 
 
-
+#/----------------------
+#| retrieve_edl_to_list - Retrieves a list of URL's from an EDL or other hosted list of URL's and converts to domains
 def retrieve_edl_to_list(edl_url):
     response = requests.get(edl_url)
     listofdomains= re.sub('\*\.|\/',"",response.text).split()
     return listofdomains
+#\----------------------
 
+#/----------------------
+#| get_dns_service_profile - Gets a DNS Service Profile object by name and returns it
 def get_dns_service_profile(sdk, profile_name):
     result = sdk.get.dnsserviceprofiles()
     answer = None
@@ -683,7 +687,11 @@ def get_dns_service_profile(sdk, profile_name):
             answer = sdk.get.dnsserviceprofiles(dnsserviceprofile_id=dns_profile['id']).cgx_content
             return answer
     return answer
+#\----------------------
 
+
+#/----------------------
+#| populate_dns_profile_breakout - Populates a DNS profile with a domain forwarder based on a list of domains, a service role id, and a dns server address
 def populate_dns_profile_breakout(dns_profile=None, fqdn_list=None, dns_primary=None, service_role_id=None):
     dns_svr_fwd_config = dns_profile['dns_forward_config']['dns_servers']
     for domain in fqdn_list:
@@ -704,10 +712,15 @@ def populate_dns_profile_breakout(dns_profile=None, fqdn_list=None, dns_primary=
                 "address_family": "ipv4"
             })
     return dns_profile
+#\----------------------
 
+
+#/----------------------
+#| get_dns_servicerole_id - Retrieves a DNS Service Role ID by name
 def get_dns_servicerole_id(sdk, service_role_name):
     result = sdk.get.dnsserviceroles()
     for serviceroles in result.cgx_content.get('items', None):
         if serviceroles['name'] == service_role_name:
             return serviceroles['id']
     return None
+#\----------------------
